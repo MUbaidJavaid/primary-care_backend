@@ -1,18 +1,22 @@
-const groqClient = require('../config/grok');
+const groqClient = require("../config/grok");
 
 async function callGroq(systemPrompt, userMessage) {
+  if (!groqClient) {
+    throw new Error("GROQ_API_KEY is not configured");
+  }
+
   const temperature = parseFloat(process.env.TEMPERATURE) || 0.1;
   const maxTokens = parseInt(process.env.MAX_TOKENS, 10) || 800;
 
   const response = await groqClient.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: "llama-3.3-70b-versatile",
     messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
     ],
     temperature,
     max_tokens: maxTokens,
-    response_format: { type: 'json_object' },
+    response_format: { type: "json_object" },
   });
 
   return {
