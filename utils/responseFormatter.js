@@ -1,18 +1,20 @@
 function formatTriageResponse(rawResponse, redFlags = []) {
   const defaults = {
-    possibleCondition: 'Unable to determine',
-    urgencyLevel: 'Routine',
-    recommendedAction: 'Please consult a qualified healthcare provider.',
-    guidelineExcerpt: '',
-    disclaimer: 'This is not a confirmed diagnosis. Please consult a qualified physician for definitive diagnosis and treatment.',
+    possibleCondition: "Unable to determine",
+    urgencyLevel: "Routine",
+    recommendedAction: "Please consult a qualified healthcare provider.",
+    guidelineExcerpt: "",
+    disclaimer:
+      "This is not a confirmed diagnosis. Please consult a qualified physician for definitive diagnosis and treatment.",
     sourceReferences: [],
     redFlagTriggered: redFlags.length > 0,
+    redFlagsDetected: redFlags.map((flag) => flag.value),
   };
 
   if (!rawResponse) return defaults;
 
   let parsed = rawResponse;
-  if (typeof rawResponse === 'string') {
+  if (typeof rawResponse === "string") {
     try {
       parsed = JSON.parse(rawResponse);
     } catch {
@@ -20,13 +22,13 @@ function formatTriageResponse(rawResponse, redFlags = []) {
     }
   }
 
-  const validLevels = ['Routine', 'Urgent', 'Emergency'];
+  const validLevels = ["Routine", "Urgent", "Emergency", "Insufficient"];
   let urgencyLevel = parsed.urgencyLevel || defaults.urgencyLevel;
   if (!validLevels.includes(urgencyLevel)) {
-    urgencyLevel = 'Routine';
+    urgencyLevel = "Routine";
   }
   if (redFlags.length > 0) {
-    urgencyLevel = 'Emergency';
+    urgencyLevel = "Emergency";
   }
 
   return {
@@ -37,20 +39,31 @@ function formatTriageResponse(rawResponse, redFlags = []) {
     disclaimer: defaults.disclaimer,
     sourceReferences: parsed.sourceReferences || defaults.sourceReferences,
     redFlagTriggered: redFlags.length > 0,
-    redFlags: redFlags.length > 0 ? redFlags : undefined,
+    redFlagsDetected:
+      redFlags.length > 0
+        ? redFlags.map((flag) => flag.value)
+        : parsed.redFlagsDetected || [],
+    additionalNotes: parsed.additionalNotes || "",
   };
 }
 
 function buildEmergencyResponse(redFlags) {
   return {
-    possibleCondition: 'EMERGENCY — Red Flag Symptoms Detected',
-    urgencyLevel: 'Emergency',
-    recommendedAction: `IMMEDIATE REFERRAL REQUIRED. Red flags detected: ${redFlags.map(f => f.value).join('; ')}. Stabilize the patient and arrange emergency transport to the nearest hospital immediately. Do NOT delay.`,
-    guidelineExcerpt: 'Per WHO/MoH emergency protocols: Any patient presenting with red-flag symptoms must be stabilized and referred immediately to secondary/tertiary care.',
-    disclaimer: 'This is not a confirmed diagnosis. Please consult a qualified physician for definitive diagnosis and treatment.',
-    sourceReferences: ['WHO Emergency Triage Assessment and Treatment (ETAT)', 'MoH Pakistan Emergency Protocols'],
+    possibleCondition: "EMERGENCY — Red Flag Symptoms Detected",
+    urgencyLevel: "Emergency",
+    recommendedAction: `IMMEDIATE REFERRAL REQUIRED. Red flags detected: ${redFlags.map((f) => f.value).join("; ")}. Stabilize the patient and arrange emergency transport to the nearest hospital immediately. Do NOT delay.`,
+    guidelineExcerpt:
+      "Per WHO/MoH emergency protocols: Any patient presenting with red-flag symptoms must be stabilized and referred immediately to secondary/tertiary care.",
+    disclaimer:
+      "This is not a confirmed diagnosis. Please consult a qualified physician for definitive diagnosis and treatment.",
+    sourceReferences: [
+      "WHO Emergency Triage Assessment and Treatment (ETAT)",
+      "MoH Pakistan Emergency Protocols",
+    ],
     redFlagTriggered: true,
-    redFlags,
+    redFlagsDetected: redFlags.map((flag) => flag.value),
+    additionalNotes:
+      "Emergency red-flag protocol triggered before LLM inference.",
   };
 }
 

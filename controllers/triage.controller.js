@@ -1,13 +1,23 @@
-const { runTriagePipeline } = require('../services/rag.service');
-const ChatSession = require('../models/ChatSession');
-const QueryLog = require('../models/QueryLog');
+const { runTriagePipeline } = require("../services/rag.service");
+const ChatSession = require("../models/ChatSession");
+const QueryLog = require("../models/QueryLog");
 
 exports.triageQuery = async (req, res, next) => {
   try {
+    if (req.user.role === "viewer") {
+      return res
+        .status(403)
+        .json({ message: "Viewer role cannot run new triage queries" });
+    }
+
     const { patientInfo, queryText, sessionId } = req.body;
 
-    if (!patientInfo || !patientInfo.symptoms || patientInfo.symptoms.length === 0) {
-      return res.status(400).json({ message: 'Patient symptoms are required' });
+    if (
+      !patientInfo ||
+      !patientInfo.symptoms ||
+      patientInfo.symptoms.length === 0
+    ) {
+      return res.status(400).json({ message: "Patient symptoms are required" });
     }
 
     if (req.emergencyResponse) {
@@ -19,18 +29,27 @@ exports.triageQuery = async (req, res, next) => {
       };
 
       if (sessionId) {
-        await saveToSession(sessionId, queryText || patientInfo.symptoms.join(', '), emergencyResult.triageResponse);
+        await saveToSession(
+          sessionId,
+          queryText || patientInfo.symptoms.join(", "),
+          emergencyResult.triageResponse,
+        );
       }
 
       await QueryLog.create({
         sessionId,
         userId: req.user._id,
+        facilityId: req.user.facility || null,
         patientInfo,
-        queryText: queryText || patientInfo.symptoms.join(', '),
+        queryText: queryText || patientInfo.symptoms.join(", "),
         retrievedChunks: [],
         triageResponse: req.emergencyResponse,
-        tokensUsed: 0,
-        responseTimeMs: 0,
+        performance: {
+          tokensUsed: 0,
+          responseTimeMs: 0,
+          retrievalTimeMs: 0,
+          embeddingTimeMs: 0,
+        },
       });
 
       return res.json(emergencyResult);
@@ -41,11 +60,16 @@ exports.triageQuery = async (req, res, next) => {
       queryText,
       sessionId,
       userId: req.user._id,
+      facilityId: req.user.facility || null,
       redFlags: req.redFlags || [],
     });
 
     if (sessionId) {
-      await saveToSession(sessionId, queryText || patientInfo.symptoms.join(', '), result.triageResponse);
+      await saveToSession(
+        sessionId,
+        queryText || patientInfo.symptoms.join(", "),
+        result.triageResponse,
+      );
     }
 
     res.json(result);
@@ -77,7 +101,7 @@ exports.getQueryLogs = async (req, res, next) => {
 exports.getQueryLogById = async (req, res, next) => {
   try {
     const log = await QueryLog.findById(req.params.id).lean();
-    if (!log) return res.status(404).json({ message: 'Log not found' });
+    if (!log) return res.status(404).json({ message: "Log not found" });
     res.json(log);
   } catch (error) {
     next(error);
@@ -89,13 +113,17 @@ async function saveToSession(sessionId, userMessage, triageResponse) {
     await ChatSession.findByIdAndUpdate(sessionId, {
       $push: {
         messages: [
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: triageResponse.recommendedAction, triageData: triageResponse },
+          { role: "user", content: userMessage },
+          {
+            role: "assistant",
+            content: triageResponse.recommendedAction,
+            triageData: triageResponse,
+          },
         ],
       },
       updatedAt: new Date(),
     });
   } catch (err) {
-    console.error('Failed to save to session:', err.message);
+    console.error("Failed to save to session:", err.message);
   }
 }
